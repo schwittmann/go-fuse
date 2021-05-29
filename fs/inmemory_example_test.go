@@ -6,11 +6,15 @@ package fs_test
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
+	"testing"
+	"time"
 
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -91,3 +95,67 @@ func Example() {
 	// Wait until unmount before exiting
 	server.Wait()
 }
+
+
+func TestManyFilesReadDir(t *testing.T) {
+	mountpoint, err := ioutil.TempDir("", "manyfiles")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(mountpoint)
+
+	root := &inMemoryFS{}
+	server, err := fs.Mount(mountpoint, root, &fs.Options{
+		MountOptions: fuse.MountOptions{
+			// Set to true to see how the file system works.
+			Debug: true,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(time.Second)
+
+	fileCount := 200
+	// add more files to make it interesting
+	for i:=0; i< fileCount; i++ {
+		ch := root.NewPersistentInode(context.Background(), &fs.Inode{},
+			fs.StableAttr{Mode: syscall.S_IFDIR})
+		root.AddChild(fmt.Sprintf("added_child_%d", i), ch, true)
+	}
+	// files are already added, increase by fileCount
+	expectedChildCount := fileCount + len(files)
+	defer server.Unmount()
+
+	iterations := 1000
+
+	for i := 0; i < iterations; i++ {
+
+		infos, err := ioutil.ReadDir(mountpoint)
+		if err != nil {
+			t.Fatal("failed read dir", err)
+		}
+
+		if len(infos) != expectedChildCount {
+			for _, info := range infos {
+				t.Log(info.Name())
+			}
+			t.Fatalf("failed, got just %d entries instead of %d in iteration %d", len(infos),expectedChildCount, i)
+		}
+		// check uniqueness
+		uniqueMap := make(map[string]int)
+		for infoIdx, v := range infos {
+			if k, ok := uniqueMap[v.Name()]; ok {
+				t.Errorf("uniqueness fail, saw name %q idx %d at index %d before", v.Name(), k, infoIdx)
+			}
+			uniqueMap[v.Name()] = infoIdx
+		}
+		if len(uniqueMap) != expectedChildCount {
+			t.Fatalf("failed, got just %d unique entries instead of %d - failed at attempt #%d ", len(uniqueMap),expectedChildCount, i)
+		}
+		if t.Failed() {
+			return
+		}
+	}
+}
+
