@@ -7,6 +7,8 @@ package fs
 import (
 	"context"
 	"log"
+	"sort"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -928,6 +930,9 @@ func (b *rawBridge) getStream(ctx context.Context, inode *Inode) (DirStream, sys
 			Name: k,
 			Ino:  ch.StableAttr().Ino})
 	}
+	sort.Slice(r, func(i, j int) bool {
+		return strings.Compare(r[i].Name, r[j].Name) == -1
+	})
 	return NewListDirStream(r), 0
 }
 
