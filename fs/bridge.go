@@ -908,13 +908,17 @@ func (b *rawBridge) Fallocate(cancel <-chan struct{}, input *fuse.FallocateIn) f
 func (b *rawBridge) OpenDir(cancel <-chan struct{}, input *fuse.OpenIn, out *fuse.OpenOut) fuse.Status {
 	n, _ := b.inode(input.NodeId, 0)
 
-	if od, ok := n.ops.(NodeOpendirer); ok {
-		errno := od.Opendir(&fuse.Context{Caller: input.Caller, Cancel: cancel})
-		if errno != 0 {
-			return errnoToStatus(errno)
-		}
-	}
+	var errno syscall.Errno
 
+	switch od := n.ops.(type) {
+	case NodeOpendirerWithFlags:
+		out.OpenFlags, errno = od.Opendir(&fuse.Context{Caller: input.Caller, Cancel: cancel}, input.Flags)
+	case NodeOpendirer:
+		errno = od.Opendir(&fuse.Context{Caller: input.Caller, Cancel: cancel})
+	}
+	if errno != 0 {
+		return errnoToStatus(errno)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	out.Fh = uint64(b.registerFile(n, nil, 0))

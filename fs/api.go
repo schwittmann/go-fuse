@@ -414,6 +414,14 @@ type NodeOpendirer interface {
 	Opendir(ctx context.Context) syscall.Errno
 }
 
+// OpenDir opens a directory Inode for reading its
+// contents. The actual reading is driven from ReadDir, so
+// this method is just for performing sanity/permission
+// checks and setting open flags. The default is to return success.
+type NodeOpendirerWithFlags interface {
+	Opendir(ctx context.Context, flags uint32) (openFlags uint32, errno syscall.Errno)
+}
+
 // ReadDir opens a stream of directory entries.
 //
 // Readdir essentiallly returns a list of strings, and it is allowed
