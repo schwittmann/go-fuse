@@ -138,6 +138,14 @@ func (n *Inode) StableAttr() StableAttr {
 	return n.stableAttr
 }
 
+// ChangeCounter returns changeCounter of this node. Useful for
+// figuring out whether a child node has been forgotten by the kernel.
+func (n *Inode) ChangeCounter() uint32 {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.changeCounter
+}
+
 // Mode returns the filetype
 func (n *Inode) Mode() uint32 {
 	return n.stableAttr.Mode
